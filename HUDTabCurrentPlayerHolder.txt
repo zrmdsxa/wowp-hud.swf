@@ -24,7 +24,7 @@ package wowp.hud.widget.tabMenu.assets.player
          this._vo = vo;
          _rankService = rankService;
          this._points = totalPoints;
-         _baseNamePosition = Number(Number(Number(Number(Number(Number(Number(tfName.x)))))));
+         _baseNamePosition = Number(Number(Number(Number(Number(Number(Number(Number(Number(tfName.x)))))))));
          removeSelection();
          setNickname("[" + this._vo.clanName.value + "]" + this._vo.nickName.value);
          setLevel(this._vo.planeLevel.value);
@@ -149,7 +149,7 @@ package wowp.hud.widget.tabMenu.assets.player
       
       override protected function repaintName() : void
       {
-         setNickname("[" + this._vo.clanName.value + "]" + this._vo.nickName.value);
+         setNickname((this._vo.clanName.value == ""?"":"[" + this._vo.clanName.value + "]") + this._vo.nickName.value);
       }
    }
 }
