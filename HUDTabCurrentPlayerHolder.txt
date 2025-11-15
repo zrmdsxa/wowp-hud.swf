@@ -1,0 +1,155 @@
+package wowp.hud.widget.tabMenu.assets.player
+{
+   import wowp.hud.core.data.IintT;
+   import wowp.hud.core.impl.IHUDSignal;
+   import wowp.hud.core.management.HUDViewUtils;
+   import wowp.hud.service.rankIcons.IHUDRanksService;
+   import wowp.hud.vo.currentPlayerInfo.IHUDCurrentPlayerInfoVO;
+   
+   public class HUDTabCurrentPlayerHolder extends HUDTabAllyPlayerHolder
+   {
+       
+      
+      private var _vo:IHUDCurrentPlayerInfoVO;
+      
+      private var _points:IintT;
+      
+      public function HUDTabCurrentPlayerHolder(state:String)
+      {
+         super(state);
+      }
+      
+      public function initCurrentPlayer(vo:IHUDCurrentPlayerInfoVO, rankService:IHUDRanksService, totalPoints:IintT) : void
+      {
+         this._vo = vo;
+         _rankService = rankService;
+         this._points = totalPoints;
+         _baseNamePosition = Number(Number(Number(Number(Number(Number(Number(tfName.x)))))));
+         removeSelection();
+         setNickname("[" + this._vo.clanName.value + "]" + this._vo.nickName.value);
+         setLevel(this._vo.planeLevel.value);
+         setModel(this._vo.planeName.value);
+         toggleSquad(this._vo.squadIndex.value,true);
+         toggleOver(false);
+         toggleCurrent(true);
+         this.checkLifeStatus(this._vo.state.value);
+         setPoints(this._points.value);
+         this.updateClassIcon();
+         loadRankIcon(this._vo.rank.value);
+         this._vo.planeLevel.onNewValue.add(setLevel);
+         this._vo.planeName.onNewValue.add(setModel);
+         this._vo.rank.onNewValue.add(loadRankIcon);
+         this._vo.state.onNewValue.add(this.checkLifeStatus);
+         this._vo.planeType.onChange.add(this.updateClassIcon);
+         this._vo.isSpecialist.onChange.add(this.updateClassIcon);
+         this._points.onNewValue.add(setPoints);
+         removeSelection();
+         registerInfoTip(this._vo.id.value,-1,this._vo.planeScoresData);
+      }
+      
+      private function updateClassIcon() : void
+      {
+         loadClassIcon(this._vo.planeType.value,this._vo.isSpecialist.value);
+      }
+      
+      override public function dispose() : void
+      {
+         this._vo.planeLevel.onNewValue.remove(setLevel);
+         this._vo.planeName.onNewValue.remove(setModel);
+         this._vo.rank.onNewValue.remove(loadRankIcon);
+         this._vo.state.onNewValue.remove(this.checkLifeStatus);
+         this._vo.planeType.onChange.remove(this.updateClassIcon);
+         this._vo.isSpecialist.onChange.remove(this.updateClassIcon);
+         this._points.onNewValue.remove(setPoints);
+         HUDViewUtils.infoTipManager.unregister(mcHintComparisonInfo);
+         HUDViewUtils.infoTipManager.unregister(mcHintPlanesScoreInfo);
+      }
+      
+      override protected function get getTextConfig() : String
+      {
+         if(this.isRespawn)
+         {
+            return SQUAD_RESPAWN_TF;
+         }
+         if(this.isDeath)
+         {
+            return DEATH;
+         }
+         return SQUAD_TF;
+      }
+      
+      override public function get nickname() : String
+      {
+         return this._vo.planeName.value;
+      }
+      
+      override public function get level() : int
+      {
+         return this._vo.planeLevel.value;
+      }
+      
+      override public function get points() : int
+      {
+         return this._points.value;
+      }
+      
+      override public function get isDeath() : Boolean
+      {
+         return this._vo.state.isDead;
+      }
+      
+      override public function get onStateChange() : IHUDSignal
+      {
+         return this._vo.state.onChange;
+      }
+      
+      override public function get onPointsChanged() : IHUDSignal
+      {
+         return this._points.onChange;
+      }
+      
+      override public function get onRankChanged() : IHUDSignal
+      {
+         return this._vo.rank.onChange;
+      }
+      
+      override public function get isOffline() : Boolean
+      {
+         return false;
+      }
+      
+      override public function get isRespawn() : Boolean
+      {
+         return this._vo.state.isWaitingForRespawn;
+      }
+      
+      override protected function toggleDeath(value:Boolean) : void
+      {
+         toggleCurrent(true,!!value?Number(0.5):Number(1));
+         super.toggleDeath(value);
+      }
+      
+      override protected function checkLifeStatus(value:int) : void
+      {
+         this.toggleDeath(false);
+         if(!this._vo)
+         {
+            return;
+         }
+         if(this.isDeath)
+         {
+            this.toggleDeath(true);
+         }
+         updateTextConfig();
+      }
+      
+      override protected function showSelection() : void
+      {
+      }
+      
+      override protected function repaintName() : void
+      {
+         setNickname("[" + this._vo.clanName.value + "]" + this._vo.nickName.value);
+      }
+   }
+}

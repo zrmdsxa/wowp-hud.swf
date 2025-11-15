@@ -1,0 +1,622 @@
+package wowp.hud.widget.tabMenu.assets.player
+{
+   import flash.display.MovieClip;
+   import flash.display.Sprite;
+   import flash.events.MouseEvent;
+   import flash.filters.GlowFilter;
+   import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import scaleform.gfx.Extensions;
+   import scaleform.gfx.MouseEventEx;
+   import wowp.controls.BitmapLoaderEx;
+   import wowp.hud.constants.HUDImageFormatsConst;
+   import wowp.hud.constants.HUDInfoTipConst;
+   import wowp.hud.core.data.IArrayT;
+   import wowp.hud.core.impl.IHUDSignal;
+   import wowp.hud.core.impl.IHUDSoloSignal;
+   import wowp.hud.core.management.HUDViewUtils;
+   import wowp.hud.service.rankIcons.IHUDRanksService;
+   import wowp.hud.util.text.addSpacesToText;
+   import wowp.hud.util.text.cutTextByLength;
+   import wowp.hud.vo.entities.IHUDAvatarVO;
+   import wowp.hud.vo.planeScores.local.HUDPlaneScoresLocalVO;
+   import wowp.hud.widget.tabMenu.assets.HUDTabStates;
+   
+   public class HUDTabBasePlayerHolder extends Sprite
+   {
+      
+      private static const RIGHT_MOUSE_EVENT:String = "click";
+      
+      private static const OFFLINE_NAME_SHIFT:int = 15;
+      
+      private static const LEVELS_MAP:Array = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
+      
+      private static const BASE_ICON_POSITION:String = "icons/hud/tabMenu";
+      
+      private static const ICON_BASE_NAME:String = "/iconTableClass";
+      
+      private static const RANK_BASE_NAME:String = "/iconTableRank";
+      
+      private static const SPECIALIST:String = "Specialist";
+      
+      private static const ICONS_MAP:Object = {
+         "1":"Fighter",
+         "2":"Heavy",
+         "3":"Attack",
+         "4":"Multi",
+         "5":"Bomber"
+      };
+      
+      protected static const SQUAD_TF:String = "squad";
+      
+      protected static const SQUAD_OFFLINE_TF:String = "squadOffline";
+      
+      protected static const SQUAD_RESPAWN_TF:String = "squadRespawn";
+      
+      protected static const SIMPLE_TF:String = "simple";
+      
+      protected static const SIMPLE_OFFLINE_TF:String = "simpleOffline";
+      
+      protected static const SIMPLE_RESPAWN_TF:String = "simpleRespawn";
+      
+      protected static const OVER_TF:String = "over";
+      
+      protected static const TOGGLE_TF:String = "toggle";
+      
+      protected static const DEATH:String = "death";
+      
+      protected static const TF_COLORS_CONFIG:Object = {};
+      
+      protected static const TF_TOP_COLOR:uint = 12963545;
+      
+      protected static const TF_TOP_GLOW:Array = [new GlowFilter(TF_TOP_COLOR,0.5)];
+      
+      {
+         TF_COLORS_CONFIG[SQUAD_TF] = {
+            "color":16755251,
+            "alpha":1,
+            "level":7568256,
+            "points0":6778483,
+            "points":10595506
+         };
+         TF_COLORS_CONFIG[SQUAD_OFFLINE_TF] = {
+            "color":6778483,
+            "alpha":0.5,
+            "level":4540748,
+            "points0":4540748,
+            "points":4540748
+         };
+         TF_COLORS_CONFIG[SQUAD_RESPAWN_TF] = {
+            "color":10053151,
+            "alpha":0.5,
+            "level":6778483,
+            "points0":6778483,
+            "points":6778483
+         };
+         TF_COLORS_CONFIG[SIMPLE_TF] = {
+            "color":9226495,
+            "alpha":1,
+            "level":7568256,
+            "points0":4540748,
+            "points":10595506
+         };
+         TF_COLORS_CONFIG[SIMPLE_OFFLINE_TF] = {
+            "color":6778483,
+            "alpha":0.5,
+            "level":4540748,
+            "points0":4540748,
+            "points":4540748
+         };
+         TF_COLORS_CONFIG[SIMPLE_RESPAWN_TF] = {
+            "color":5535897,
+            "alpha":0.5,
+            "level":4540748,
+            "points0":4540748,
+            "points":4540748
+         };
+         TF_COLORS_CONFIG[OVER_TF] = {
+            "color":16768183,
+            "alpha":1,
+            "level":16768183,
+            "points0":16768183,
+            "points":16768183
+         };
+         TF_COLORS_CONFIG[TOGGLE_TF] = {
+            "color":9226495,
+            "alpha":1,
+            "level":9226495,
+            "points0":9226495,
+            "points":9226495
+         };
+         TF_COLORS_CONFIG[DEATH] = {
+            "color":10046540,
+            "alpha":0.5,
+            "level":4540748,
+            "points0":4540748,
+            "points":4540748
+         };
+      }
+      
+      protected var _prevConfig:Object;
+      
+      protected var _view:Sprite;
+      
+      private var _vo:IHUDAvatarVO;
+      
+      private var _inPlayerSquad:Boolean;
+      
+      private var _pointsColored:Boolean;
+      
+      private var _clickSignal:IHUDSoloSignal;
+      
+      protected var _baseNamePosition:Number;
+      
+      private var _isTop:Boolean;
+      
+      protected var _rankService:IHUDRanksService;
+      
+      protected var _rankPriority:int;
+      
+      public function HUDTabBasePlayerHolder(state:String)
+      {
+         super();
+         addChild(this._view);
+         this._view.addEventListener(MouseEvent.MOUSE_OVER,this.onMouseHandler);
+         this._view.addEventListener(MouseEvent.MOUSE_OUT,this.onMouseHandler);
+         this._view.addEventListener(RIGHT_MOUSE_EVENT,this.onMouseHandler);
+      }
+      
+      private function onMouseHandler(event:MouseEvent) : void
+      {
+         if(event.type == RIGHT_MOUSE_EVENT)
+         {
+            if(!Extensions.isScaleform || event && event is MouseEventEx && (event as MouseEventEx).buttonIdx != MouseEventEx.LEFT_BUTTON)
+            {
+               this._clickSignal && this._clickSignal.fire(this);
+               this.showSelection();
+               event.stopImmediatePropagation();
+            }
+            return;
+         }
+         this.toggleOver(event.type == MouseEvent.MOUSE_OVER && (!this.select || this.select.visible == false));
+      }
+      
+      protected function showSelection() : void
+      {
+         if(this._vo.isBot.value)
+         {
+            return;
+         }
+         if(this.select)
+         {
+            this.select.visible = true;
+         }
+         this.toggleOver(false);
+      }
+      
+      public function removeSelection() : void
+      {
+         if(this.select)
+         {
+            this.select.visible = false;
+         }
+      }
+      
+      public function dispose() : void
+      {
+         this._view.removeEventListener(MouseEvent.MOUSE_OVER,this.onMouseHandler);
+         this._view.removeEventListener(MouseEvent.MOUSE_OUT,this.onMouseHandler);
+         this._view.removeEventListener(RIGHT_MOUSE_EVENT,this.onMouseHandler);
+         this._vo.planeLevel.onNewValue.remove(this.setLevel);
+         this._vo.planeName.onNewValue.remove(this.setModel);
+         this._vo.rankID.onNewValue.remove(this.loadRankIcon);
+         this._vo.state.onNewValue.remove(this.checkLifeStatus);
+         this._vo.isLost.onNewValue.remove(this.checkLifeStatus);
+         this._vo.points.onNewValue.remove(this.setPoints);
+         this._vo.planeType.onChange.remove(this.updateClassIcon);
+         this._vo.isSpecialist.onChange.remove(this.updateClassIcon);
+         this._rankService = null;
+         HUDViewUtils.infoTipManager.unregister(this.mcHintComparisonInfo);
+         HUDViewUtils.infoTipManager.unregister(this.mcHintPlanesScoreInfo);
+      }
+      
+      public function init(avatar:IHUDAvatarVO, rankService:IHUDRanksService, currentPlayerSquad:int, currentPlayerPlaneGlobalID:int, onClickSignal:IHUDSoloSignal) : void
+      {
+         this._vo = avatar;
+         this._rankService = rankService;
+         this._inPlayerSquad = this._vo.squadIndex.value > 0 && this._vo.squadIndex.value == currentPlayerSquad;
+         this._baseNamePosition = Number(Number(Number(Number(Number(Number(Number(Number(Number(this.tfName.x)))))))));
+         this._clickSignal = onClickSignal;
+         this.removeSelection();
+         this.setNickname("[" + this._vo.clanName.value + "]" + this._vo.playerName.value);
+         this.setLevel(this._vo.planeLevel.value);
+         this.setModel(this._vo.planeName.value);
+         this.toggleSquad(this._vo.squadIndex.value,this._inPlayerSquad);
+         this.toggleOver(false);
+         this.toggleCurrent(false);
+         this.checkLifeStatus(this._vo.state.value);
+         this.setPoints(this._vo.points.value);
+         this.updateClassIcon();
+         this.loadRankIcon(this._vo.rankID.value);
+         this._vo.planeLevel.onNewValue.add(this.setLevel);
+         this._vo.planeName.onNewValue.add(this.setModel);
+         this._vo.rankID.onNewValue.add(this.loadRankIcon);
+         this._vo.state.onNewValue.add(this.checkLifeStatus);
+         this._vo.isLost.onNewValue.add(this.checkLifeStatus);
+         this._vo.points.onNewValue.add(this.setPoints);
+         this._vo.planeType.onChange.add(this.updateClassIcon);
+         this._vo.isSpecialist.onChange.add(this.updateClassIcon);
+         this.registerInfoTip(avatar.id.value,currentPlayerPlaneGlobalID,avatar.planeScoresData);
+      }
+      
+      private function updateClassIcon() : void
+      {
+         this.loadClassIcon(this._vo.planeType.value,this._vo.isSpecialist.value);
+      }
+      
+      protected function setTextConfig(config:Object) : void
+      {
+         if(!this._prevConfig || this._prevConfig != config)
+         {
+            this._prevConfig = config;
+            if(this.rankIcon)
+            {
+               this.rankIcon.alpha = config.alpha;
+            }
+            this.squadIcon.alpha = this.classIcon.alpha = config.alpha;
+            this.setTextColor(this.tfName,config.color);
+            this.setTextColor(this.tfModel,config.color);
+            this.setTextColor(this.tfLevel,config.level);
+         }
+         if(this.tfPoints)
+         {
+            if(this._isTop && this.tfPoints.filters != TF_TOP_GLOW)
+            {
+               this.setTextColor(this.tfPoints,TF_TOP_COLOR);
+               this.tfPoints.filters = TF_TOP_GLOW;
+            }
+            else if(this.points > 0)
+            {
+               this.setTextColor(this.tfPoints,config.points);
+               this.tfPoints.filters = [];
+            }
+            else if(this.points == 0)
+            {
+               this.setTextColor(this.tfPoints,config.points0);
+            }
+         }
+         if(this.isOffline)
+         {
+            this.tfName.x = this._baseNamePosition + OFFLINE_NAME_SHIFT;
+            this.offlineIcon.visible = true;
+         }
+         else
+         {
+            this.tfName.x = this._baseNamePosition;
+            this.offlineIcon.visible = false;
+         }
+         this.repaintName();
+      }
+      
+      protected function repaintName() : void
+      {
+         this.setNickname((this._vo.clanName.value == ""?"":"[" + this._vo.clanName.value + "]") + this._vo.playerName.value);
+      }
+      
+      private function setTextColor(field:TextField, color:uint) : void
+      {
+         field.textColor = color;
+      }
+      
+      protected function checkLifeStatus(value:int) : void
+      {
+         this.toggleDeath(false);
+         if(!this._vo)
+         {
+            return;
+         }
+         if(this.isDeath || this.isOffline)
+         {
+            this.toggleDeath(true);
+         }
+         this.updateTextConfig();
+      }
+      
+      public function updateTop(isTop:Boolean) : void
+      {
+         this._isTop = isTop;
+         if(!this._isTop && this.tfPoints && this.tfPoints.textColor == TF_TOP_COLOR || this._isTop && this.tfPoints && this.tfPoints.textColor != TF_TOP_COLOR)
+         {
+            this.updateTextConfig();
+         }
+      }
+      
+      protected function setPoints(value:int) : void
+      {
+         if(!this.tfPoints)
+         {
+            return;
+         }
+         this.tfPoints.text = this.points.toString();
+         addSpacesToText(this.tfPoints);
+         if(!this._pointsColored && value > 0)
+         {
+            this._pointsColored = true;
+            this.updateTextConfig();
+         }
+         else if(this._pointsColored && value == 0)
+         {
+            this._pointsColored = false;
+            this.updateTextConfig();
+         }
+      }
+      
+      protected function setNickname(nickname:String) : void
+      {
+         this.tfName.text = nickname;
+         this.tfName.width = this.tfLevel.x - this.tfName.x;
+         cutTextByLength(this.tfName);
+      }
+      
+      protected function setLevel(level:int) : void
+      {
+         this.tfLevel.text = LEVELS_MAP[level - 1];
+      }
+      
+      protected function setModel(model:String) : void
+      {
+         this.tfModel.text = model;
+         if(this.tfPoints)
+         {
+            this.tfModel.width = this.tfPoints.x - this.tfModel.x;
+         }
+         cutTextByLength(this.tfModel);
+      }
+      
+      protected function loadRankIcon(rankID:int) : void
+      {
+         if(!this.rankIcon)
+         {
+            return;
+         }
+         if(rankID == -1)
+         {
+            this.rankIcon.visible = false;
+            return;
+         }
+         this._rankPriority = int(int(int(int(int(int(int(int(int(this._rankService.getRankPriority(rankID))))))))));
+         this.rankIcon.visible = true;
+         this.rankIcon.isCentered = true;
+         this.rankIcon.load(this._rankService.getTabPlayerRankIcon(rankID));
+      }
+      
+      protected function loadClassIcon(planeClass:int, isSpecialist:Boolean) : void
+      {
+         this.classIcon.isCentered = true;
+         var path:String = BASE_ICON_POSITION + ICON_BASE_NAME + ICONS_MAP[planeClass] + (!!isSpecialist?SPECIALIST:"") + HUDImageFormatsConst.DDS_IMAGE_TYPE;
+         this.classIcon.load(path);
+      }
+      
+      protected function toggleSquad(index:int, isMain:Boolean = false) : void
+      {
+         if(!this.squadIcon)
+         {
+            return;
+         }
+         if(index == 0)
+         {
+            this.squadIcon.visible = false;
+         }
+         this.squadIcon.gotoAndStop(!!isMain?HUDTabStates.TEAM_STATE_MAIN:HUDTabStates.TEAM_STATE_OTHER);
+         this.squadIcon.tfValue.text = index.toString();
+         this.squadIcon.tfValue.autoSize = TextFieldAutoSize.CENTER;
+      }
+      
+      protected function toggleOver(value:Boolean) : void
+      {
+         this.over.visible = false;
+      }
+      
+      protected function updateTextConfig() : void
+      {
+         if(this.select.visible)
+         {
+            this.setTextConfig(TF_COLORS_CONFIG[TOGGLE_TF]);
+         }
+         else if(this.over.visible)
+         {
+            this.setTextConfig(TF_COLORS_CONFIG[OVER_TF]);
+         }
+         else
+         {
+            this.setTextConfig(TF_COLORS_CONFIG[this.getTextConfig]);
+         }
+      }
+      
+      protected function get getTextConfig() : String
+      {
+         if(this.isOffline)
+         {
+            if(this._inPlayerSquad)
+            {
+               return SQUAD_OFFLINE_TF;
+            }
+            return SIMPLE_OFFLINE_TF;
+         }
+         if(this.isRespawn)
+         {
+            if(this._inPlayerSquad)
+            {
+               return SQUAD_RESPAWN_TF;
+            }
+            return SIMPLE_RESPAWN_TF;
+         }
+         if(this.isDeath)
+         {
+            return DEATH;
+         }
+         if(this._inPlayerSquad)
+         {
+            return SQUAD_TF;
+         }
+         return SIMPLE_TF;
+      }
+      
+      protected function toggleCurrent(value:Boolean, alpha:Number = 1) : void
+      {
+         if(!this.current)
+         {
+            return;
+         }
+         this.current.visible = value;
+         this.current.alpha = alpha;
+      }
+      
+      protected function toggleDeath(value:Boolean) : void
+      {
+         if(!this.death)
+         {
+            return;
+         }
+         this.death.visible = value;
+      }
+      
+      protected function registerInfoTip(planeGlobalID:int, currentPlayerPlaneGlobalID:int, planeScores:IArrayT) : void
+      {
+         var scores:HUDPlaneScoresLocalVO = null;
+         scores = new HUDPlaneScoresLocalVO();
+         scores.planeScores = planeScores;
+         HUDViewUtils.infoTipManager.register(this.mcHintPlanesScoreInfo,HUDInfoTipConst.PLANE_SCORES,scores);
+      }
+      
+      private function get rankIcon() : BitmapLoaderEx
+      {
+         return this._view["rankIcon"];
+      }
+      
+      protected function get squadIcon() : MovieClip
+      {
+         return this._view["squadIcon"];
+      }
+      
+      protected function get tfName() : TextField
+      {
+         return this._view["tfName"];
+      }
+      
+      private function get tfLevel() : TextField
+      {
+         return this._view["tfLevel"];
+      }
+      
+      protected function get mcHintComparisonInfo() : Sprite
+      {
+         return this._view["mcHintComparisonInfo"];
+      }
+      
+      protected function get mcHintPlanesScoreInfo() : Sprite
+      {
+         return this._view["mcHintPlanesScoreInfo"];
+      }
+      
+      private function get classIcon() : BitmapLoaderEx
+      {
+         return this._view["classIcon"];
+      }
+      
+      private function get tfModel() : TextField
+      {
+         return this._view["tfModel"];
+      }
+      
+      private function get tfPoints() : TextField
+      {
+         return this._view["tfPoints"];
+      }
+      
+      private function get offlineIcon() : Sprite
+      {
+         return this._view["offlineIcon"];
+      }
+      
+      private function get over() : Sprite
+      {
+         return this._view["over"];
+      }
+      
+      private function get current() : Sprite
+      {
+         return this._view["current"];
+      }
+      
+      private function get death() : Sprite
+      {
+         return this._view["death"];
+      }
+      
+      private function get select() : Sprite
+      {
+         return this._view["select"];
+      }
+      
+      public function get nickname() : String
+      {
+         return this._vo.playerName.value;
+      }
+      
+      public function get level() : int
+      {
+         return this._vo.planeLevel.value;
+      }
+      
+      public function get rank() : int
+      {
+         return this._rankPriority;
+      }
+      
+      public function get points() : int
+      {
+         return this._vo.points.value;
+      }
+      
+      public function get isDeath() : Boolean
+      {
+         return this._vo.state.isDead;
+      }
+      
+      public function get isOffline() : Boolean
+      {
+         return this._vo.isLost.value;
+      }
+      
+      public function get isRespawn() : Boolean
+      {
+         return this._vo.state.isWaitingForRespawn;
+      }
+      
+      override public function get height() : Number
+      {
+         return this.over.height;
+      }
+      
+      public function get onStateChange() : IHUDSignal
+      {
+         return this._vo.state.onChange;
+      }
+      
+      public function get onPointsChanged() : IHUDSignal
+      {
+         return this._vo.points.onChange;
+      }
+      
+      public function get onRankChanged() : IHUDSignal
+      {
+         return this._vo.rankID.onChange;
+      }
+      
+      public function get vo() : IHUDAvatarVO
+      {
+         return this._vo;
+      }
+   }
+}

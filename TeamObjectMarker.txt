@@ -1,0 +1,238 @@
+package wowp.hud.widget.markers.teamObject
+{
+   import flash.display.DisplayObject;
+   import flash.display.Shape;
+   import flash.display.Sprite;
+   import flash.events.TimerEvent;
+   import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import flash.utils.Timer;
+   import wowp.controls.BitmapLoaderEx;
+   import wowp.hud.widget.markers.MarkerProgressBar;
+   
+   public class TeamObjectMarker extends Sprite
+   {
+       
+      
+      private const CURRENT_DAMAGE_DELAY:int = 1000;
+      
+      public var txtDistance:TextField;
+      
+      public var blIcon:BitmapLoaderEx;
+      
+      public var txtName:TextField;
+      
+      public var txtHealth:TextField;
+      
+      public var txtSubHealth:TextField;
+      
+      public var txtCurDamage:TextField;
+      
+      public var warningContainer:Sprite;
+      
+      public var distanceBack:Sprite;
+      
+      private var _healthMask:Shape;
+      
+      private var _healthBar:MarkerProgressBar;
+      
+      private var _curDamageTimer:Timer;
+      
+      public function TeamObjectMarker()
+      {
+         super();
+         this.txtHealth.visible = false;
+         this.txtSubHealth.visible = false;
+         this.hideCurrentDamage();
+         this.warningContainer = new Sprite();
+         addChild(this.warningContainer);
+         this._healthBar = new MarkerProgressBar();
+         this._healthBar.visible = false;
+         addChildAt(this._healthBar,0);
+         this.init();
+      }
+      
+      public function setHealth(pHealth:Number, pHealthPercent:Number, isNeutral:Boolean) : void
+      {
+         this._healthBar.percent = pHealthPercent;
+         this.txtHealth.text = pHealth.toString();
+         this.txtSubHealth.text = pHealth.toString();
+         if(isNeutral && !this._healthMask)
+         {
+            this._healthMask = new Shape();
+            this._healthMask.graphics.lineStyle(0);
+            this._healthMask.graphics.beginFill(0);
+            this._healthMask.graphics.drawRect(0,y,this.txtSubHealth.width,this.txtSubHealth.height);
+            this._healthMask.graphics.endFill();
+            this._healthMask.x = this.txtHealth.x;
+            this._healthMask.y = this.txtHealth.y;
+            this._healthMask.alpha = 0;
+            addChild(this._healthMask);
+            this.txtHealth.mask = this._healthMask;
+         }
+         else if(!isNeutral && this._healthMask)
+         {
+            this._healthMask = null;
+            this.txtHealth.mask = null;
+         }
+         if(this._healthMask)
+         {
+            this._healthMask.width = this.txtSubHealth.width * pHealthPercent;
+         }
+      }
+      
+      private function init() : void
+      {
+         this.updateLayout();
+         this.blIcon.isCentered = true;
+         this.blIcon.onLoaded.add(this.updateLayout);
+      }
+      
+      public function hideCurrentDamage() : void
+      {
+         this.txtCurDamage.visible = false;
+      }
+      
+      public function updateCurrentDamage(damage:int) : void
+      {
+         if(damage < 1)
+         {
+            return;
+         }
+         this.txtCurDamage.visible = true;
+         this.txtCurDamage.alpha = 1;
+         this.txtCurDamage.text = "-" + damage;
+         this.killTimer();
+         this._curDamageTimer = new Timer(this.CURRENT_DAMAGE_DELAY);
+         this._curDamageTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerCompleteHandler);
+         this._curDamageTimer.start();
+      }
+      
+      private function killTimer() : void
+      {
+         if(this._curDamageTimer)
+         {
+            this._curDamageTimer.stop();
+            this._curDamageTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerCompleteHandler);
+            this._curDamageTimer.removeEventListener(TimerEvent.TIMER,this.onTimerUpdateHandler);
+         }
+      }
+      
+      private function onTimerCompleteHandler(event:TimerEvent) : void
+      {
+         this._curDamageTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerCompleteHandler);
+         this._curDamageTimer = new Timer(50,10);
+         this._curDamageTimer.addEventListener(TimerEvent.TIMER,this.onTimerUpdateHandler);
+         this._curDamageTimer.start();
+      }
+      
+      private function onTimerUpdateHandler(event:TimerEvent) : void
+      {
+         if(this.txtCurDamage.alpha > 0)
+         {
+            this.txtCurDamage.alpha = this.txtCurDamage.alpha - 0.1;
+         }
+      }
+      
+      private function updateLayout() : void
+      {
+         var halfHeight:int = this.blIcon.height >> 1;
+         this.blIcon.y = halfHeight;
+         this.txtDistance.x = int(0 - this.txtDistance.width >> 1);
+         this.txtDistance.y = int(this.blIcon.y + halfHeight) - 1;
+         if(this.distanceBack || this.distanceBack.visible || this.txtDistance.visible)
+         {
+            this.distanceBack.width = this.txtDistance.width + 4;
+            this.distanceBack.height = this.txtDistance.height;
+            this.distanceBack.x = this.txtDistance.x - 2;
+            this.distanceBack.y = this.txtDistance.y + 1;
+         }
+         if(this.txtDistance.visible)
+         {
+            this.txtName.y = int(this.txtDistance.y + this.txtDistance.height) + 1;
+         }
+         else
+         {
+            this.txtName.y = this.txtDistance.y + 2;
+         }
+         this.txtName.autoSize = TextFieldAutoSize.CENTER;
+         if(this.txtName.visible)
+         {
+            this._healthBar.y = int(this.txtName.y + this.txtName.height) + 1;
+         }
+         else
+         {
+            this._healthBar.y = int(this.txtDistance.y + this.txtDistance.height) + 1;
+         }
+         this._healthBar.x = int(0 - this._healthBar.width >> 1);
+         this.txtHealth.y = this.txtSubHealth.y = this._healthBar.y - 3;
+         if(this._healthMask)
+         {
+            this._healthMask.x = this.txtHealth.x;
+            this._healthMask.y = this.txtHealth.y;
+         }
+         this.txtCurDamage.y = int(this._healthBar.y + this._healthBar.height * 0.5 - this.txtCurDamage.height * 0.5) - 1;
+         this.txtCurDamage.x = int(this._healthBar.x + this._healthBar.width + 3);
+         var hg:int = 0;
+         if(this._healthBar.visible)
+         {
+            hg = hg - (this._healthBar.y + this._healthBar.height);
+         }
+         else if(this.txtName.visible)
+         {
+            hg = hg - (this.txtName.y + this.txtName.height);
+         }
+         else if(this.txtDistance.visible)
+         {
+            hg = hg - (this.txtDistance.y + this.txtDistance.height);
+         }
+         else
+         {
+            hg = hg - this.blIcon.height;
+         }
+         if(this.blIcon.visible)
+         {
+            this.warningContainer.y = this.blIcon.y - this.blIcon.height;
+         }
+         else
+         {
+            this.warningContainer.y = this.blIcon.y;
+         }
+         this.shiftElements(hg >> 1);
+      }
+      
+      protected function shiftElements(shift:int) : void
+      {
+         var i:int = 0;
+         var child:DisplayObject = null;
+         i = 0;
+         while(i < this.numChildren)
+         {
+            child = this.getChildAt(i);
+            child.y = child.y + int(shift);
+            i++;
+         }
+      }
+      
+      public function setProgressBarSize(pVisible:Boolean, pSize:String) : void
+      {
+         this.txtHealth.visible = pVisible && pSize == MarkerProgressBar.BIG_SIZE;
+         this.txtSubHealth.visible = this.txtHealth.visible && this._healthMask;
+         this._healthBar.visible = pVisible;
+         this._healthBar.size = pSize;
+         this.updateLayout();
+      }
+      
+      public function get healthBar() : MarkerProgressBar
+      {
+         return this._healthBar;
+      }
+      
+      public function dispose() : void
+      {
+         this.killTimer();
+         this.blIcon.onLoaded.remove(this.updateLayout);
+         this.blIcon.clear();
+      }
+   }
+}
