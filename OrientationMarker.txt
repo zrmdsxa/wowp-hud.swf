@@ -1,0 +1,90 @@
+package wowp.hud.widget.markers.orientation
+{
+   import flash.display.Sprite;
+   import flash.text.TextField;
+   import flash.text.TextFieldAutoSize;
+   import flash.utils.getDefinitionByName;
+   import wowp.controls.BitmapLoaderEx;
+   
+   public class OrientationMarker extends Sprite
+   {
+       
+      
+      public var commandContainer:Sprite;
+      
+      private var _view:Sprite;
+      
+      private var _antiRotateHolder:Sprite;
+      
+      private var _hideHolder:Sprite;
+      
+      private var _blIcon:BitmapLoaderEx;
+      
+      private var _clIcon:BitmapLoaderEx;
+      
+      private var _txtDistance:TextField;
+      
+      public function OrientationMarker()
+      {
+         super();
+         var cls:Class = getDefinitionByName("OrientationMarker") as Class;
+         this._view = new cls();
+         this._blIcon = this._view.getChildByName("blIcon") as BitmapLoaderEx;
+         this._blIcon.isCentered = true;
+         this._clIcon = this._view.getChildByName("clIcon") as BitmapLoaderEx;
+         this._clIcon.isCentered = true;
+         this._txtDistance = this._view.getChildByName("txtDistance") as TextField;
+         this._txtDistance.autoSize = TextFieldAutoSize.CENTER;
+         this._antiRotateHolder = new Sprite();
+         this._hideHolder = new Sprite();
+         this.commandContainer = new Sprite();
+         this._hideHolder.addChild(this._txtDistance);
+         this._hideHolder.addChild(this._clIcon);
+         this._antiRotateHolder.addChild(this._hideHolder);
+         this._antiRotateHolder.addChild(this.commandContainer);
+         this._view.addChild(this._antiRotateHolder);
+         addChild(this._view);
+         this._clIcon.y = 0;
+         this._txtDistance.x = (0 - this._txtDistance.width) * 0.5;
+         this._txtDistance.y = (0 - this._txtDistance.height) * 0.5 + 12;
+         this.updateOrientation();
+      }
+      
+      public function updateOrientation() : void
+      {
+         this._hideHolder.visible = this.commandContainer.alpha == 0;
+         var maxHg:Number = Math.max(!!this._txtDistance.visible?Number(this._txtDistance.height):Number(0),!!this._clIcon.visible?Number(this._clIcon.height):Number(0),!!this.commandContainer.visible?this._blIcon.height:0);
+         this._antiRotateHolder.y = (this._blIcon.height + maxHg) * 0.5 + 1;
+      }
+      
+      public function get txtDistance() : TextField
+      {
+         return this._txtDistance;
+      }
+      
+      public function get blIcon() : BitmapLoaderEx
+      {
+         return this._blIcon;
+      }
+      
+      public function get antiRotateHolder() : Sprite
+      {
+         return this._antiRotateHolder;
+      }
+      
+      public function dispose() : void
+      {
+         this._blIcon.clear();
+      }
+      
+      public function get hideHolder() : Sprite
+      {
+         return this._hideHolder;
+      }
+      
+      public function get clIcon() : BitmapLoaderEx
+      {
+         return this._clIcon;
+      }
+   }
+}
