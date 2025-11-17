@@ -1,0 +1,492 @@
+package wowp.hud.widget.ammunitions.assets
+{
+   import flash.display.MovieClip;
+   import flash.display.Sprite;
+   import flash.external.ExternalInterface;
+   import flash.text.TextField;
+   import wowp.core.LocalizationManager;
+   import wowp.hud.constants.HUDInfoTipConst;
+   import wowp.hud.core.IStringT;
+   import wowp.hud.core.management.HUDViewUtils;
+   import wowp.hud.service.hotkeys.assets.enums.HUDHotKeysIconsENUM;
+   import wowp.hud.service.settings.alt.IHUDAmmunitionAlt;
+   import wowp.hud.util.display.HUDKeyHolder;
+   import wowp.hud.util.display.tweens.HUDTween;
+   import wowp.hud.util.display.tweens.disposeTween;
+   import wowp.hud.vo.ammunitions.ammunition.IHUDAmmunitionVO;
+   import wowp.hud.vo.hotkeys.IHUDHotKeysVO;
+   import wowp.hud.widget.crosshair.bomber.assets.bombs.HUDBomberBombStates;
+   import wowp.hud.widget.crosshair.bomber.assets.bombs.HUDBomberBombView;
+   
+   public class HUDAmmunitionSpecial extends MovieClip
+   {
+       
+      
+      private const TWEEN_DURATION:int = 1000;
+      
+      private const SHIFT_CLUSTER:int = 4;
+      
+      private const HOT_KEYS_SHIFT:int = 19;
+      
+      private var _vo:IHUDAmmunitionVO;
+      
+      public var txtTime:TextField;
+      
+      public var mcHotKey:HUDKeyHolder;
+      
+      public var mcReloadKey:HUDKeyHolder;
+      
+      public var txtAmount:TextField;
+      
+      public var txtName:TextField;
+      
+      public var mcSize:Sprite;
+      
+      public var mcProgress:MovieClip;
+      
+      private var _holder:Sprite;
+      
+      private var _bombs:Vector.<HUDBomberBombView>;
+      
+      private var _bombsLoaded:int;
+      
+      private var _isVisible:Boolean;
+      
+      private var _time:int;
+      
+      private var _scaleTween:HUDTween;
+      
+      private var _isTimerAvailable:Boolean;
+      
+      private var _isNameAvailable:Boolean;
+      
+      private var _isAmountAvailable:Boolean;
+      
+      private var _ammoName:String;
+      
+      private var _hotKeys:IHUDHotKeysVO;
+      
+      public function HUDAmmunitionSpecial()
+      {
+         super();
+         visible = false;
+         this._holder = new Sprite();
+         addChildAt(this._holder,0);
+      }
+      
+      public function registerAltSettings(settings:IHUDAmmunitionAlt) : void
+      {
+         settings.registerViews([settings.ammunition_view,this.onAltVisible]);
+         settings.registerViews([settings.ammunition_timer,this.onTimerVisibleUpdate]);
+         settings.registerViews([settings.ammunition_amount,this.updateAltAmount]);
+         settings.registerViews([settings.ammunition_key,this.updateHotKeysVisibility]);
+         settings.registerViews([settings.ammunition_name,this.updateAltName]);
+      }
+      
+      private function updateHotKeysVisibility(value:Boolean) : void
+      {
+         this.mcHotKey.visible = this.mcReloadKey.visible = value;
+      }
+      
+      public function unregisterAltSettings(settings:IHUDAmmunitionAlt) : void
+      {
+         settings.registerViews([this.onAltVisible,this.onTimerVisibleUpdate,this.updateAltAmount,this.updateHotKeysVisibility,this.updateAltName]);
+      }
+      
+      private function updateAltName(value:Boolean) : void
+      {
+         this._isNameAvailable = value;
+         this.updateAmount();
+      }
+      
+      private function updateAltAmount(value:Boolean) : void
+      {
+         this._isAmountAvailable = value;
+         this.updateAmount();
+      }
+      
+      private function updateAmount() : void
+      {
+         var amount:int = 0;
+         var cluster:int = 0;
+         var value:String = null;
+         if(!this._vo)
+         {
+            return;
+         }
+         this.txtName.text = "";
+         if(this._isNameAvailable)
+         {
+            this.txtName.text = this._ammoName;
+            if(this._isAmountAvailable)
+            {
+               this.txtName.appendText(", ");
+            }
+         }
+         if(this._isAmountAvailable)
+         {
+            amount = this._vo.amount.value;
+            cluster = this._vo.cluster.value;
+            value = int(amount / cluster) > 0?cluster == 1?amount.toString():int(amount / cluster) + "x" + cluster:"0";
+            this.txtName.appendText(value);
+         }
+         this.updateHotKeyEnable();
+      }
+      
+      private function onTimerVisibleUpdate(value:Boolean) : void
+      {
+         this._isTimerAvailable = value;
+         this.updateTimeVisibility();
+      }
+      
+      private function onAltVisible(value:Boolean) : void
+      {
+         this._isVisible = value;
+         visible = this._isVisible;
+      }
+      
+      public function setData(vo:IHUDAmmunitionVO, hotKeys:IHUDHotKeysVO) : void
+      {
+         this._vo = vo;
+         this._hotKeys = hotKeys;
+         HUDViewUtils.infoTipManager.register(this,HUDInfoTipConst.AMMUNITION,this._vo);
+         this.listeners(true);
+         this.updateView();
+      }
+      
+      public function dispose() : void
+      {
+         var i:int = 0;
+         var bomb:HUDBomberBombView = null;
+         disposeTween(this._scaleTween);
+         this.listeners(false);
+         this._hotKeys = null;
+         i = 0;
+         while(i < this._bombs.length)
+         {
+            bomb = this._bombs[i];
+            bomb.onViewReadySignal.remove(this.loadBackComplete);
+            bomb.dispose();
+            i++;
+         }
+         this._bombs = null;
+         HUDViewUtils.infoTipManager.unregister(this);
+         this._vo = null;
+      }
+      
+      private function updateView() : void
+      {
+         this.loadBombs();
+         this.onAmountHandler();
+         if(!this.isCoolDown)
+         {
+            this.hideCooldown();
+         }
+      }
+      
+      private function hideCooldown() : void
+      {
+         this.txtTime.visible = false;
+         this.mcProgress["bar"].visible = false;
+         this.mcProgress["bar"].scaleY = 1;
+         this.mcProgress["back"].alpha = 0.1;
+      }
+      
+      private function loadBombs() : void
+      {
+         var i:int = 0;
+         var bomb:HUDBomberBombView = null;
+         this._bombsLoaded = 0;
+         this._bombs = new Vector.<HUDBomberBombView>();
+         var amount:int = this._vo.amountMax.value;
+         i = 0;
+         while(i < amount)
+         {
+            bomb = new HUDBomberBombView(this._vo.shellIcon.value);
+            bomb.onViewReadySignal.add(this.loadBackComplete);
+            this._holder.addChild(bomb);
+            this._bombs.push(bomb);
+            if(bomb.onViewReadySignal.fired)
+            {
+               this.loadBackComplete();
+            }
+            i++;
+         }
+         this.txtTime.autoSize = this.txtTime.defaultTextFormat.align;
+      }
+      
+      private function loadBackComplete() : void
+      {
+         var i:int = 0;
+         var bomb:HUDBomberBombView = null;
+         ++this._bombsLoaded;
+         if(!this.isLoaded)
+         {
+            return;
+         }
+         if(!ExternalInterface.available)
+         {
+            graphics.lineStyle(1,16755200);
+            graphics.moveTo(0,0);
+            graphics.lineTo(0,-100);
+         }
+         var cluster:uint = this._vo.cluster.value;
+         var bombsAmount:int = this._bombs.length;
+         i = 0;
+         while(i < bombsAmount)
+         {
+            bomb = this._bombs[i];
+            if(cluster == 1)
+            {
+               bomb.x = Math.round((this._bombs.length - i - 1) * bomb.width + (bomb.width >> 1));
+               bomb.y = -5;
+            }
+            else
+            {
+               bomb.x = Math.round(int((this._bombs.length - i - 1) / 2) * bomb.width + (bomb.width >> 1)) + int((this._bombs.length - i - 1) / cluster) * this.SHIFT_CLUSTER;
+               bomb.y = (-1 - i) % (2 * (bomb.height + 1));
+            }
+            i++;
+         }
+         var firstBomb:HUDBomberBombView = this._bombs[bombsAmount - 1];
+         this._holder.x = 0;
+         this.mcSize.width = this._holder.width;
+         this.txtTime.width = Math.max(this._holder.width,this.txtTime.width);
+         this.mcProgress.width = Math.max(this._holder.width,35);
+         this.mcReloadKey.y = this.mcHotKey.y = int(firstBomb.y - (firstBomb.height >> 1) - (this.mcHotKey.height >> 1) - 18);
+         if(cluster == 1)
+         {
+            this.txtTime.y = firstBomb.y - (this.txtTime.height >> 1);
+         }
+         else
+         {
+            this.txtTime.y = firstBomb.y + (firstBomb.height >> 1) - (this.txtTime.height >> 1);
+         }
+         this.txtAmount.visible = false;
+         this._ammoName = LocalizationManager.getInstance().textByLocalizationID(this._vo.ammoName.value.toString());
+         this.txtName.width = 100;
+         this.txtName.mouseEnabled = false;
+         this.updateAmount();
+         if(this._vo.id.value == 0)
+         {
+            this.mcSize.x = 0;
+            this.mcProgress.x = (this._holder.width >> 1) - (this.mcProgress.width >> 1) + this.mcProgress.width;
+            this.txtAmount.x = this.mcProgress.x;
+            this.txtTime.x = (this._holder.width >> 1) - (this.txtTime.width >> 1);
+            this.txtName.x = (this._holder.width >> 1) - (this.txtName.width >> 1);
+            this.x = this.x - Math.round(this.mcProgress.width / 2);
+         }
+         else
+         {
+            this.mcSize.x = 0 - this._holder.width;
+            this.mcProgress.x = 0 - (this.mcProgress.width >> 1) - (this._holder.width >> 1);
+            this.txtAmount.x = this.mcProgress.x + this.mcProgress.width;
+            this.txtTime.x = 0 - (this.txtTime.width >> 1) - (this._holder.width >> 1);
+            this.txtName.x = 0 - (this.txtName.width >> 1) - (this._holder.width >> 1);
+            this._holder.scaleX = -1;
+            this.mcProgress.scaleX = this.mcProgress.scaleX * -1;
+            this.x = this.x + Math.round(this.mcProgress.width / 2);
+         }
+         this.onKeyInitHandler();
+         this.updateHotKeyEnable();
+         visible = this._isVisible;
+         this.addToolTip();
+      }
+      
+      private function get isLoaded() : Boolean
+      {
+         return this._bombsLoaded == this._bombs.length;
+      }
+      
+      private function listeners(access:Boolean) : void
+      {
+         if(!this._vo)
+         {
+            return;
+         }
+         if(access)
+         {
+            this._vo.amount.onChange.add(this.onAmountHandler);
+            this.useHotKey.onChange.add(this.onKeyInitHandler);
+            this._hotKeys.reloadKey.onChange.add(this.onKeyInitHandler);
+            this._vo.cooldownEndTime.onChange.add(this.onCoolDownEndTimeHandler);
+            this._vo.cooldownStartTime.onChange.add(this.onCoolDownStartTimeHandler);
+            this._vo.isAvailable.onChange.add(this.onAmountHandler);
+         }
+         else
+         {
+            this._vo.amount.onChange.remove(this.onAmountHandler);
+            this.useHotKey.onChange.remove(this.onKeyInitHandler);
+            this._hotKeys.reloadKey.onChange.remove(this.onKeyInitHandler);
+            this._vo.cooldownEndTime.onChange.remove(this.onCoolDownEndTimeHandler);
+            this._vo.cooldownStartTime.onChange.remove(this.onCoolDownStartTimeHandler);
+            this._vo.isAvailable.onChange.remove(this.onAmountHandler);
+         }
+      }
+      
+      public function updateTimer(value:int) : void
+      {
+         var targetProgress:Number = NaN;
+         var bar:Sprite = null;
+         if(!this._vo)
+         {
+            return;
+         }
+         this._time = value;
+         if(this._vo.cooldownStartTime.value <= this._time && this._time <= this._vo.cooldownEndTime.value)
+         {
+            disposeTween(this._scaleTween);
+            targetProgress = this.calculateProgress();
+            bar = this.mcProgress["bar"];
+            if(bar.scaleY > targetProgress)
+            {
+               this._scaleTween = new HUDTween(this.TWEEN_DURATION,bar,{"scaleY":targetProgress});
+            }
+            else
+            {
+               bar.scaleY = targetProgress;
+            }
+            this.txtTime.text = (this._vo.cooldownEndTime.value - this._time).toString();
+         }
+      }
+      
+      private function calculateProgress() : Number
+      {
+         var total:int = this._vo.cooldownEndTime.value - this._vo.cooldownStartTime.value;
+         var current:int = this._time - this._vo.cooldownStartTime.value;
+         return Math.min(1,(total - current) / total);
+      }
+      
+      private function onCoolDownEndTimeHandler() : void
+      {
+         if(!this._vo)
+         {
+            return;
+         }
+         if(this.isCoolDown)
+         {
+            this.mcProgress["bar"].visible = true;
+            this.mcProgress["bar"].scaleY = this.calculateProgress();
+            this.mcProgress["back"].alpha = 0.2;
+            this.updateTimeVisibility();
+            this.txtTime.text = (this._vo.cooldownEndTime.value - this._time).toString();
+         }
+         this.updateHotKeyEnable();
+      }
+      
+      private function updateHotKeyEnable(value:Boolean = true) : void
+      {
+         value = value && this._vo && this._vo.isAvailable.value && !this.isCoolDown;
+         this.mcHotKey.alpha = !!value?Number(1):Number(0.5);
+         this.mcReloadKey.alpha = this._vo && !this.isCoolDown && this._vo.amount.value != this._vo.amountMax.value?Number(1):Number(0.5);
+      }
+      
+      private function updateTimeVisibility() : void
+      {
+         this.txtTime.visible = this.isCoolDown && this._isTimerAvailable;
+      }
+      
+      private function onCoolDownStartTimeHandler() : void
+      {
+      }
+      
+      private function onKeyInitHandler() : void
+      {
+         if(!this._vo)
+         {
+            return;
+         }
+         if(!this.mcHotKey)
+         {
+            return;
+         }
+         this.mcHotKey.init(this.useHotKey.value,3,23);
+         this.mcHotKey.setBackMode();
+         this.mcHotKey.setIcon(HUDHotKeysIconsENUM.DROP_BOMB.replace("{type}",""));
+         this.mcReloadKey.init(this._hotKeys.reloadKey.value,3,23);
+         this.mcReloadKey.setBackMode();
+         this.mcReloadKey.setIcon(HUDHotKeysIconsENUM.RELOAD.replace("{type}",""));
+         this.mcReloadKey.iconSignal.add(this.onIconLoadedHandler);
+      }
+      
+      private function onIconLoadedHandler() : void
+      {
+         var SHIFT:Number = NaN;
+         this.mcReloadKey.iconSignal.remove(this.onIconLoadedHandler);
+         if(this._vo.id.value == 0)
+         {
+            this.mcHotKey.x = this._holder.width >> 1;
+         }
+         else
+         {
+            this.mcHotKey.x = 0 - (this._holder.width >> 1);
+         }
+         SHIFT = this.HOT_KEYS_SHIFT + this.mcHotKey.width;
+         this.mcHotKey.x = this.mcHotKey.x - ((this.mcHotKey.width >> 1) + (SHIFT >> 1));
+         this.mcReloadKey.x = this.mcHotKey.x + SHIFT;
+      }
+      
+      private function onAmountHandler() : void
+      {
+         var i:int = 0;
+         var bomb:HUDBomberBombView = null;
+         if(!this._vo)
+         {
+            return;
+         }
+         var amount:int = this._vo.amount.value;
+         i = 0;
+         while(i < this._bombs.length)
+         {
+            bomb = this._bombs[i];
+            bomb.setState(this.getBombState(i >= amount,!this._vo.isAvailable.value));
+            i++;
+         }
+         if(this._vo.amount.value == this._vo.amountMax.value)
+         {
+            this.hideCooldown();
+         }
+         this.updateAmount();
+      }
+      
+      private function addToolTip() : void
+      {
+      }
+      
+      private function get isCoolDown() : Boolean
+      {
+         if(!this._vo)
+         {
+            return false;
+         }
+         return this._vo.cooldownEndTime.value > this._time;
+      }
+      
+      public function get id() : int
+      {
+         if(!this._vo)
+         {
+            return -1;
+         }
+         return this._vo.id.value;
+      }
+      
+      private function getBombState(isEmpty:Boolean, isLock:Boolean) : int
+      {
+         if(isEmpty)
+         {
+            return HUDBomberBombStates.EMPTY;
+         }
+         if(isLock)
+         {
+            return HUDBomberBombStates.LOCK;
+         }
+         return HUDBomberBombStates.READY;
+      }
+      
+      private function get useHotKey() : IStringT
+      {
+         return this._hotKeys.getLaunchKey(this._vo.keySlot.value);
+      }
+   }
+}
